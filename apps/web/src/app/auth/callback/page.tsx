@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function AuthCallbackPage() {
+function CallbackContent() {
     const searchParams = useSearchParams()
     const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
     const [message, setMessage] = useState('Processing authentication...')
@@ -86,5 +86,17 @@ export default function AuthCallbackPage() {
                 </div>
             </div>
         </main>
+    )
+}
+
+export default function AuthCallbackPage() {
+    return (
+        <Suspense fallback={
+            <main className="min-h-screen flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+            </main>
+        }>
+            <CallbackContent />
+        </Suspense>
     )
 }
