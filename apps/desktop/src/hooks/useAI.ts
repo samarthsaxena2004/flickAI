@@ -13,7 +13,11 @@ export function useAI() {
 
     const chat = useCallback(async (
         messages: Message[],
-        onStream?: (chunk: string) => void
+        onStream?: (chunk: string) => void,
+        context?: {
+            hasScreenshot?: boolean;
+            userInput?: string;
+        }
     ): Promise<string> => {
         const apiKey = import.meta.env.VITE_CEREBRAS_API_KEY;
 
@@ -26,29 +30,31 @@ export function useAI() {
         setError(null);
 
         try {
+            // Detect context type based on user input and screenshot
+            const contextType = detectContextType(messages, context);
+            const systemPrompt = getContextualSystemPrompt(contextType);
+
             const response = await fetch(CEREBRAS_API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
+                    'User-Agent': 'FlickAI-Desktop/1.0',
                 },
                 body: JSON.stringify({
-                    model: 'llama-3.3-70b',
+                    model: 'zai-glm-4.7',
                     messages: [
                         {
                             role: 'system',
-                            content: `You are FlickAI, a helpful, concise AI assistant. 
-              - Be brief and direct in your responses
-              - Format code in markdown code blocks
-              - For coding questions, provide working solutions
-              - For writing help, be clear and constructive
-              - Keep responses under 300 words unless asked for more detail`,
+                            content: systemPrompt,
                         },
                         ...messages,
                     ],
                     stream: !!onStream,
-                    temperature: 0.7,
-                    max_tokens: 2048,
+                    temperature: 1.0, // GLM 4.7 default recommended by Z.ai
+                    top_p: 0.95, // Balanced default
+                    max_completion_tokens: 2048,
+                    clear_thinking: false, // Preserve reasoning for coding/agentic workflows & better cache hits
                 }),
             });
 
@@ -102,6 +108,133 @@ export function useAI() {
     }, []);
 
     return { chat, isLoading, error };
+}
+
+// Detect what kind of help the user needs based on context
+function detectContextType(
+    messages: Message[],
+    context?: { hasScreenshot?: boolean; userInput?: string }
+): 'coding' | 'writing' | 'email' | 'general' {
+    const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || '';
+    const userInput = context?.userInput?.toLowerCase() || '';
+    const combinedText = `${lastMessage} ${userInput}`;
+
+    // Coding keywords
+    const codingKeywords = [
+        'code', 'bug', 'error', 'debug', 'function', 'class', 'variable',
+        'syntax', 'compile', 'runtime', 'exception', 'import', 'export',
+        'typescript', 'javascript', 'python', 'react', 'component', 'api',
+        'terminal', 'console', 'stack trace', 'npm', 'yarn', 'git'
+    ];
+
+    // Email keywords
+    const emailKeywords = [
+        'email', 'gmail', 'reply', 'compose', 'send', 'recipient',
+        'subject line', 'professional', 'business email', 'message'
+    ];
+
+    // Writing keywords
+    const writingKeywords = [
+        'write', 'grammar', 'rewrite', 'improve', 'polish', 'proofread',
+        'document', 'paragraph', 'essay', 'article', 'content', 'tone'
+    ];
+
+    // Check for coding context
+    if (codingKeywords.some(keyword => combinedText.includes(keyword)) ||
+        context?.hasScreenshot) {
+        return 'coding';
+    }
+
+    // Check for email context
+    if (emailKeywords.some(keyword => combinedText.includes(keyword))) {
+        return 'email';
+    }
+
+    // Check for writing context
+    if (writingKeywords.some(keyword => combinedText.includes(keyword))) {
+        return 'writing';
+    }
+
+    return 'general';
+}
+
+// Get contextual system prompt based on detected context
+function getContextualSystemPrompt(contextType: 'coding' | 'writing' | 'email' | 'general'): string {
+    const basePrompt = 'You are FlickAI, an intelligent desktop assistant powered by Cerebras.';
+
+    switch (contextType) {
+        case 'coding':
+            return `${basePrompt}
+
+**Context**: User needs coding assistance.
+
+**Your role**:
+- Provide accurate, working code solutions
+- Debug errors and explain the fix
+- Suggest best practices and optimizations
+- Format code in proper markdown code blocks with language tags
+- Be concise but thorough - explain WHY, not just HOW
+
+**Response style**:
+- Start with the solution/fix immediately
+- Use code blocks: \`\`\`language
+- Highlight key changes or error causes
+- Keep explanations under 200 words unless complex
+- If you see an error in a screenshot, identify it precisely`;
+
+        case 'email':
+            return `${basePrompt}
+
+**Context**: User needs help with email composition or replies.
+
+**Your role**:
+- Draft professional, clear emails
+- Adapt tone based on context (formal/casual)
+- Structure: Subject line (if needed) → Greeting → Body → Closing
+- Keep it concise and actionable
+- For Gmail replies, match the thread's tone
+
+**Response style**:
+- Provide the complete email draft
+- Use proper formatting (paragraphs, bullets if needed)
+- Suggest 2-3 subject line options if composing new email
+- Be direct and respectful`;
+
+        case 'writing':
+            return `${basePrompt}
+
+**Context**: User needs writing assistance (grammar, rewriting, improvement).
+
+**Your role**:
+- Correct grammar, spelling, and punctuation
+- Improve clarity and flow
+- Adjust tone as needed (professional, casual, persuasive)
+- Maintain the user's voice and intent
+- Highlight major changes made
+
+**Response style**:
+- Show the improved version first
+- Brief explanation of changes (1-2 sentences)
+- Suggest alternatives if relevant
+- Be constructive, not just corrective`;
+
+        case 'general':
+        default:
+            return `${basePrompt}
+
+**Your capabilities**:
+- 💻 Code assistance: Debug, write, and optimize code
+- ✍️ Writing help: Grammar, rewriting, and composition
+- 📧 Email drafting: Professional and personal emails
+- 🔍 General help: Troubleshooting, explanations, productivity
+
+**Response guidelines**:
+- Be concise and actionable (under 300 words)
+- Use formatting: **bold**, bullets, code blocks
+- Prioritize clarity over verbosity
+- Ask clarifying questions if context is unclear
+- If user shows a screenshot, analyze it carefully`;
+    }
 }
 
 // Demo response for when no API key is configured

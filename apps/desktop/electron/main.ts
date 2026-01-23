@@ -57,8 +57,25 @@ function createWindow() {
     });
 }
 
-function showWindow() {
+async function showWindow() {
     if (mainWindow) {
+        // Capture screenshot BEFORE showing window (to capture what's underneath)
+        try {
+            const sources = await desktopCapturer.getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1920, height: 1080 },
+            });
+
+            if (sources.length > 0) {
+                const screenshotDataUrl = sources[0].thumbnail.toDataURL();
+                
+                // Send screenshot to renderer immediately
+                mainWindow.webContents.send('auto-screenshot-captured', screenshotDataUrl);
+            }
+        } catch (error) {
+            console.error('Auto-screenshot error:', error);
+        }
+
         // Center on screen
         const { screen } = require('electron');
         const primaryDisplay = screen.getPrimaryDisplay();

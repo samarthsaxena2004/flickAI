@@ -12,6 +12,7 @@ interface Window {
         resetKeybinding: () => Promise<string>;
         onWindowShown: (callback: () => void) => void;
         onAuthTokenReceived: (callback: (token: string) => void) => void;
+        onAutoScreenshotCaptured: (callback: (dataUrl: string) => void) => void;
         removeAllListeners: (channel: string) => void;
     };
 }

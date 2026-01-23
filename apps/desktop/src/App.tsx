@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAI, useVoiceInput } from './hooks';
 import SettingsModal from './components/SettingsModal';
+import { MessageBubble } from './components/MessageBubble';
 
 type View = 'compact' | 'expanded';
 
@@ -50,6 +51,19 @@ export default function App() {
         };
     }, []);
 
+    // Listen for auto-captured screenshot when app is invoked
+    useEffect(() => {
+        window.electronAPI?.onAutoScreenshotCaptured((dataUrl: string) => {
+            console.log('Auto-screenshot received! Setting screenshot...');
+            setScreenshot(dataUrl);
+            setScreenshotEnabled(true);
+        });
+
+        return () => {
+            window.electronAPI?.removeAllListeners('auto-screenshot-captured');
+        };
+    }, []);
+
     // Update input with transcript
     useEffect(() => {
         if (transcript && !isRecording) {
@@ -76,7 +90,7 @@ export default function App() {
         if (!input.trim() && !screenshot) return;
 
         const userContent = screenshot
-            ? `[Screenshot attached]\n\n${input || 'What do you see in this screenshot?'}`
+            ? `[Screen context captured]${input ? `\n\n${input}` : '\n\nAnalyze what you see on screen and help me.'}`
             : input;
 
         const userMessage: Message = { role: 'user', content: userContent };
@@ -96,9 +110,17 @@ export default function App() {
                 content: m.content,
             }));
 
-            const response = await chat(allMessages, (chunk) => {
-                setStreamingContent((prev) => prev + chunk);
-            });
+            // Pass context for intelligent routing
+            const response = await chat(
+                allMessages,
+                (chunk) => {
+                    setStreamingContent((prev) => prev + chunk);
+                },
+                {
+                    hasScreenshot: !!screenshot,
+                    userInput: input,
+                }
+            );
 
             setMessages((prev) => [
                 ...prev,
@@ -135,12 +157,16 @@ export default function App() {
         }
     };
 
-    const toggleScreenshot = () => {
-        setScreenshotEnabled(!screenshotEnabled);
-        if (!screenshotEnabled) {
-            captureScreenshot();
-        } else {
+    const handleScreenshot = async () => {
+        if (screenshotEnabled) {
+            setScreenshotEnabled(false);
             setScreenshot(null);
+        } else {
+            const data = await window.electronAPI?.captureScreenshot();
+            if (data) {
+                setScreenshot(data);
+                setScreenshotEnabled(true);
+            }
         }
     };
 
@@ -183,31 +209,16 @@ export default function App() {
                 {view === 'expanded' && messages.length > 0 && (
                     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                         {messages.map((msg, i) => (
-                            <div
-                                key={i}
-                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}
-                            >
-                                <div
-                                    className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === 'user'
-                                            ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white'
-                                            : 'bg-white/10 text-white/90'
-                                        }`}
-                                >
-                                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                                </div>
-                            </div>
+                            <MessageBubble key={i} content={msg.content} role={msg.role} />
                         ))}
 
                         {/* Streaming response */}
                         {isLoading && streamingContent && (
-                            <div className="flex justify-start animate-slide-up">
-                                <div className="max-w-[85%] bg-white/10 rounded-xl px-4 py-3">
-                                    <p className="text-sm whitespace-pre-wrap text-white/90 leading-relaxed">
-                                        {streamingContent}
-                                        <span className="inline-block w-2 h-4 bg-violet-500 ml-1 animate-pulse" />
-                                    </p>
-                                </div>
-                            </div>
+                            <MessageBubble
+                                content={streamingContent}
+                                role="assistant"
+                                isStreaming={true}
+                            />
                         )}
 
                         {/* Loading indicator */}
@@ -228,18 +239,31 @@ export default function App() {
 
                 {/* Toggle Options */}
                 <div className="px-4 py-2 flex gap-2 flex-wrap">
+                    {/* Screenshots */}
                     <button
-                        onClick={toggleScreenshot}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${screenshotEnabled
+                        onClick={handleScreenshot}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all ${screenshotEnabled
                                 ? 'bg-violet-600 text-white'
                                 : 'bg-white/10 text-white/70 hover:bg-white/20'
                             }`}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                            />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
                         </svg>
-                        Turn on screenshot
+                        <span className="text-sm font-medium">
+                            {screenshot ? '✓ Screen captured' : 'Turn on screenshot'}
+                        </span>
                     </button>
                     <button
                         onClick={() => setFileEnabled(!fileEnabled)}

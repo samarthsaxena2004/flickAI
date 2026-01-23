@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onAuthTokenReceived: (callback: (token: string) => void) => {
         ipcRenderer.on('auth-token-received', (_event, token) => callback(token));
     },
+    onAutoScreenshotCaptured: (callback: (dataUrl: string) => void) => {
+        ipcRenderer.on('auto-screenshot-captured', (_event, dataUrl) => callback(dataUrl));
+    },
 
     // Cleanup
     removeAllListeners: (channel: string) => {
@@ -47,7 +50,10 @@ declare global {
             resetKeybinding: () => Promise<string>;
             onWindowShown: (callback: () => void) => void;
             onAuthTokenReceived: (callback: (token: string) => void) => void;
+            onAutoScreenshotCaptured: (callback: (dataUrl: string) => void) => void;
             removeAllListeners: (channel: string) => void;
         };
     }
 }
+
+export { };
