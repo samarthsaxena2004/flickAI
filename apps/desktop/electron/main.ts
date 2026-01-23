@@ -1,8 +1,16 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, desktopCapturer, safeStorage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Store from 'electron-store';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Settings store with schema
+const store = new Store({
+    defaults: {
+        keybinding: 'Alt+Space'
+    }
+});
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -116,22 +124,83 @@ function createTray() {
 }
 
 function registerHotkeys() {
-    // Double-tap Option detection
-    // Note: On macOS, 'Alt' maps to Option key
-    globalShortcut.register('Alt+Space', () => {
-        if (isVisible) {
-            hideWindow();
+    // Register the custom keybinding from store
+    const keybinding = store.get('keybinding', 'Alt+Space') as string;
+    
+    try {
+        const success = globalShortcut.register(keybinding, () => {
+            if (isVisible) {
+                hideWindow();
+            } else {
+                showWindow();
+            }
+        });
+        
+        if (!success) {
+            console.error(`Failed to register global shortcut: ${keybinding}`);
         } else {
-            showWindow();
+            console.log(`Registered global shortcut: ${keybinding}`);
         }
-    });
+    } catch (error) {
+        console.error(`Error registering global shortcut: ${keybinding}`, error);
+    }
 
-    // Escape to hide
+    // Escape to hide (keep this always registered)
     globalShortcut.register('Escape', () => {
         if (isVisible) {
             hideWindow();
         }
     });
+}
+
+function updateKeybinding(newKeybinding: string): boolean {
+    // Get the old keybinding
+    const oldKeybinding = store.get('keybinding', 'Alt+Space') as string;
+    
+    // Unregister the old one
+    if (oldKeybinding) {
+        globalShortcut.unregister(oldKeybinding);
+    }
+    
+    // Register the new one
+    try {
+        const success = globalShortcut.register(newKeybinding, () => {
+            if (isVisible) {
+                hideWindow();
+            } else {
+                showWindow();
+            }
+        });
+        
+        if (success) {
+            // Save to store only if registration was successful
+            store.set('keybinding', newKeybinding);
+            console.log(`Updated keybinding to: ${newKeybinding}`);
+            return true;
+        } else {
+            // If registration failed, re-register the old one
+            globalShortcut.register(oldKeybinding, () => {
+                if (isVisible) {
+                    hideWindow();
+                } else {
+                    showWindow();
+                }
+            });
+            console.error(`Failed to register new keybinding: ${newKeybinding}`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`Error updating keybinding: ${newKeybinding}`, error);
+        // Re-register the old one
+        globalShortcut.register(oldKeybinding, () => {
+            if (isVisible) {
+                hideWindow();
+            } else {
+                showWindow();
+            }
+        });
+        return false;
+    }
 }
 
 // IPC Handlers
@@ -179,6 +248,21 @@ function setupIPC() {
         } catch {
             return false;
         }
+    });
+
+    // Keybinding management
+    ipcMain.handle('get-keybinding', () => {
+        return store.get('keybinding', 'Alt+Space');
+    });
+
+    ipcMain.handle('set-keybinding', (_event, keybinding: string) => {
+        return updateKeybinding(keybinding);
+    });
+
+    ipcMain.handle('reset-keybinding', () => {
+        const defaultKeybinding = 'Alt+Space';
+        const success = updateKeybinding(defaultKeybinding);
+        return success ? defaultKeybinding : store.get('keybinding');
     });
 }
 

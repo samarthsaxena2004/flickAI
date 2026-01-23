@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAuthToken: () => ipcRenderer.invoke('get-auth-token'),
     setAuthToken: (token: string) => ipcRenderer.invoke('set-auth-token', token),
 
+    // Keybinding
+    getKeybinding: () => ipcRenderer.invoke('get-keybinding'),
+    setKeybinding: (keybinding: string) => ipcRenderer.invoke('set-keybinding', keybinding),
+    resetKeybinding: () => ipcRenderer.invoke('reset-keybinding'),
+
     // Event listeners
     onWindowShown: (callback: () => void) => {
         ipcRenderer.on('window-shown', callback);
@@ -37,6 +42,9 @@ declare global {
             captureScreenshot: () => Promise<string | null>;
             getAuthToken: () => Promise<string | null>;
             setAuthToken: (token: string) => Promise<boolean>;
+            getKeybinding: () => Promise<string>;
+            setKeybinding: (keybinding: string) => Promise<boolean>;
+            resetKeybinding: () => Promise<string>;
             onWindowShown: (callback: () => void) => void;
             onAuthTokenReceived: (callback: (token: string) => void) => void;
             removeAllListeners: (channel: string) => void;

@@ -41,6 +41,16 @@ html, body, #root {
   -webkit-app-region: no-drag;
 }
 
+.force-clickable {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+.force-clickable * {
+  pointer-events: none;
+}
+
 /* Glassmorphism effect */
 .glass {
   background: rgba(20, 20, 30, 0.85);
@@ -81,4 +91,20 @@ html, body, #root {
 
 .pulse-ring {
   animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Modal scale-in animation */
+@keyframes scale-in {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
 }
