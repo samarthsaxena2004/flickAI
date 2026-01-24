@@ -9,7 +9,7 @@
     <i>(Click the image above to watch the walkthrough)</i>
   </p>
   <br />
-  <h1>The Intelligent Desktop Assistant That Sees What You See</h1>
+  <h1>A Intelligent Desktop Assistant That Sees What You See</h1>
   <p>
     <b>Built in 24 hours for the Cerebras x Cline: Vibe Coder Hackathon</b><br />
     Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
