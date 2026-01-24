@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, desktopCapturer, safeStorage } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, desktopCapturer, screen } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Store from 'electron-store';
@@ -17,8 +17,10 @@ let tray: Tray | null = null;
 let isVisible = false;
 
 // Double-tap detection
-let lastAltPress = 0;
-const DOUBLE_TAP_THRESHOLD = 400;
+// let lastAltPress = 0;
+// Double-tap detection
+// let lastAltPress = 0;
+// const DOUBLE_TAP_THRESHOLD = 400;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -85,7 +87,8 @@ async function showWindow() {
         }
 
         // Center on screen
-        const { screen } = require('electron');
+        // const { screen } = require('electron');
+        // const primaryDisplay = screen.getPrimaryDisplay();
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;
 
@@ -111,7 +114,8 @@ function hideWindow() {
 
 function expandWindow() {
     if (mainWindow) {
-        const { screen } = require('electron');
+        // const { screen } = require('electron');
+        // const primaryDisplay = screen.getPrimaryDisplay();
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;
 
@@ -257,7 +261,7 @@ function setupIPC() {
 
     ipcMain.handle('get-auth-token', () => {
         try {
-            const encryptedToken = safeStorage.encryptString('');
+            // const encryptedToken = safeStorage.encryptString('');
             // For now, return empty - will be set by auth flow
             return null;
         } catch {
@@ -265,7 +269,7 @@ function setupIPC() {
         }
     });
 
-    ipcMain.handle('set-auth-token', (_event, token: string) => {
+    ipcMain.handle('set-auth-token', (_event, _token: string) => {
         try {
             // Store token securely
             // In production, use electron-store with safeStorage

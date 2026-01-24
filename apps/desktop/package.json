@@ -2,10 +2,13 @@
     "name": "@flickai/desktop",
     "version": "0.1.0",
     "private": true,
+    "type": "module",
     "main": "dist-electron/main.js",
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build && electron-builder",
+        "build:win": "tsc && vite build && electron-builder --win",
+        "build:mac": "tsc && vite build && electron-builder --mac",
         "preview": "vite preview",
         "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
         "lint": "eslint src/"
