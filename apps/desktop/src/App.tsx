@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAI, useVoiceInput } from './hooks';
+import { useAI, useVoiceInput, useVision } from './hooks';
 import SettingsModal from './components/SettingsModal';
 import { MessageBubble } from './components/MessageBubble';
 
@@ -17,12 +17,14 @@ export default function App() {
     const [screenshotEnabled, setScreenshotEnabled] = useState(false);
     const [fileEnabled, setFileEnabled] = useState(false);
     const [screenshot, setScreenshot] = useState<string | null>(null);
+    const [visionContext, setVisionContext] = useState<string | null>(null);
     const [streamingContent, setStreamingContent] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const { chat, isLoading } = useAI();
+    const { analyzeScreenshot, isAnalyzing } = useVision();
     const { isRecording, transcript, toggleRecording } = useVoiceInput({
         onTranscript: (text, isFinal) => {
             if (isFinal) {
@@ -53,16 +55,21 @@ export default function App() {
 
     // Listen for auto-captured screenshot when app is invoked
     useEffect(() => {
-        window.electronAPI?.onAutoScreenshotCaptured((dataUrl: string) => {
-            console.log('Auto-screenshot received! Setting screenshot...');
+        window.electronAPI?.onAutoScreenshotCaptured(async (dataUrl: string) => {
+            console.log('Auto-screenshot received! Analyzing with OpenRouter vision...');
             setScreenshot(dataUrl);
             setScreenshotEnabled(true);
+            
+            // Analyze screenshot with OpenRouter vision
+            const visionDescription = await analyzeScreenshot(dataUrl);
+            setVisionContext(visionDescription);
+            console.log('Vision analysis complete!');
         });
 
         return () => {
             window.electronAPI?.removeAllListeners('auto-screenshot-captured');
         };
-    }, []);
+    }, [analyzeScreenshot]);
 
     // Update input with transcript
     useEffect(() => {
@@ -89,15 +96,19 @@ export default function App() {
     const handleSubmit = async () => {
         if (!input.trim() && !screenshot) return;
 
-        const userContent = screenshot
-            ? `[Screen context captured]${input ? `\n\n${input}` : '\n\nAnalyze what you see on screen and help me.'}`
-            : input;
+        // Save vision context before clearing state!
+        const currentVisionContext = visionContext;
+        const currentScreenshot = screenshot;
+
+        // Build user message content
+        const userContent = input.trim() || (currentScreenshot ? 'Analyze what you see on this screen and help me.' : '');
 
         const userMessage: Message = { role: 'user', content: userContent };
 
         setMessages((prev) => [...prev, userMessage]);
         setInput('');
         setScreenshot(null);
+        setVisionContext(null);  // Clear vision context
         setView('expanded');
         setStreamingContent('');
 
@@ -110,16 +121,13 @@ export default function App() {
                 content: m.content,
             }));
 
-            // Pass context for intelligent routing
+            // Pass vision context to Cerebras GLM 4.7
             const response = await chat(
                 allMessages,
                 (chunk) => {
                     setStreamingContent((prev) => prev + chunk);
                 },
-                {
-                    hasScreenshot: !!screenshot,
-                    userInput: input,
-                }
+                currentVisionContext || undefined
             );
 
             setMessages((prev) => [
@@ -239,6 +247,29 @@ export default function App() {
 
                 {/* Toggle Options */}
                 <div className="px-4 py-2 flex gap-2 flex-wrap">
+                    {/* Vision Analysis Loading Indicator */}
+                    {isAnalyzing && (
+                        <div className="w-full mb-2">
+                            <div className="text-xs text-cyan-400 flex items-center gap-2 bg-cyan-500/10 px-3 py-2 rounded-lg border border-cyan-500/20">
+                                <div className="animate-spin w-3 h-3 border border-cyan-400 border-t-transparent rounded-full" />
+                                <span>Analyzing screenshot with OpenRouter vision...</span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Screenshot Status */}
+                    {visionContext && !isAnalyzing && (
+                        <div className="w-full mb-2">
+                            <span className="text-xs text-green-400 flex items-center gap-1 bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/20">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                                </svg>
+                                Screen analyzed and ready
+                            </span>
+                        </div>
+                    )}
+                    
                     {/* Screenshots */}
                     <button
                         onClick={handleScreenshot}
@@ -322,7 +353,11 @@ export default function App() {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder={isRecording ? 'Listening...' : 'Ask FlickAI anything...'}
+                                placeholder={
+                                    isRecording ? 'Listening...' : 
+                                    screenshot ? 'What would you like help with on this screen?' :
+                                    'Ask FlickAI anything...'
+                                }
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none text-sm"
                                 rows={1}
                                 disabled={isLoading}

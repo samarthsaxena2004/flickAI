@@ -63,17 +63,25 @@ async function showWindow() {
         try {
             const sources = await desktopCapturer.getSources({
                 types: ['screen'],
-                thumbnailSize: { width: 1920, height: 1080 },
+                thumbnailSize: { width: 1280, height: 720 },  // Smaller size for better compatibility
             });
 
             if (sources.length > 0) {
                 const screenshotDataUrl = sources[0].thumbnail.toDataURL();
                 
-                // Send screenshot to renderer immediately
-                mainWindow.webContents.send('auto-screenshot-captured', screenshotDataUrl);
+                // Verify we got actual data
+                if (screenshotDataUrl && screenshotDataUrl.startsWith('data:image')) {
+                    console.log('[Screenshot] Captured successfully, size:', screenshotDataUrl.length);
+                    mainWindow.webContents.send('auto-screenshot-captured', screenshotDataUrl);
+                } else {
+                    console.warn('[Screenshot] Invalid screenshot data, skipping');
+                }
+            } else {
+                console.warn('[Screenshot] No screen sources found');
             }
         } catch (error) {
-            console.error('Auto-screenshot error:', error);
+            console.error('[Screenshot] Auto-screenshot error:', error);
+            // Continue anyway - app works without vision
         }
 
         // Center on screen

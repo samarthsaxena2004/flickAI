@@ -2,9 +2,15 @@ import { useState, useCallback } from 'react';
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
 
-interface Message {
+export interface MessageContent {
+    type: 'text' | 'image_url';
+    text?: string;
+    image_url?: { url: string };
+}
+
+export interface Message {
     role: 'user' | 'assistant' | 'system';
-    content: string;
+    content: string | MessageContent[];
 }
 
 export function useAI() {
@@ -14,25 +20,31 @@ export function useAI() {
     const chat = useCallback(async (
         messages: Message[],
         onStream?: (chunk: string) => void,
-        context?: {
-            hasScreenshot?: boolean;
-            userInput?: string;
-        }
+        visionContext?: string  // Vision description from OpenRouter
     ): Promise<string> => {
         const apiKey = import.meta.env.VITE_CEREBRAS_API_KEY;
 
         if (!apiKey) {
             // Demo mode - return simulated response
-            return simulateResponse(messages[messages.length - 1].content);
+            const lastMessage = messages[messages.length - 1];
+            const messageText = typeof lastMessage?.content === 'string'
+                ? lastMessage.content
+                : (lastMessage?.content as MessageContent[])?.find(c => c.type === 'text')?.text || '';
+            return simulateResponse(messageText, !!visionContext);
         }
 
         setIsLoading(true);
         setError(null);
 
         try {
-            // Detect context type based on user input and screenshot
-            const contextType = detectContextType(messages, context);
-            const systemPrompt = getContextualSystemPrompt(contextType);
+            // Detect context type based on user input and vision context
+            const contextType = detectContextType(messages, !!visionContext);
+            const systemPrompt = getContextualSystemPrompt(contextType, visionContext);
+
+            console.log('[FlickAI] Calling Cerebras GLM 4.7...');
+            if (visionContext) {
+                console.log('[FlickAI] Vision context included in system prompt');
+            }
 
             const response = await fetch(CEREBRAS_API_URL, {
                 method: 'POST',
@@ -110,14 +122,36 @@ export function useAI() {
     return { chat, isLoading, error };
 }
 
+// Helper function to build user message with optional screenshot
+export function buildUserMessage(text: string, screenshot?: string): Message {
+    if (screenshot) {
+        return {
+            role: 'user',
+            content: [
+                { 
+                    type: 'text', 
+                    text: text || 'Analyze what you see on this screen and help me.' 
+                },
+                { 
+                    type: 'image_url', 
+                    image_url: { url: screenshot } 
+                }
+            ]
+        };
+    }
+    return { role: 'user', content: text };
+}
+
 // Detect what kind of help the user needs based on context
 function detectContextType(
     messages: Message[],
-    context?: { hasScreenshot?: boolean; userInput?: string }
+    hasScreenshot: boolean
 ): 'coding' | 'writing' | 'email' | 'general' {
-    const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || '';
-    const userInput = context?.userInput?.toLowerCase() || '';
-    const combinedText = `${lastMessage} ${userInput}`;
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageText = typeof lastMessage?.content === 'string' 
+        ? lastMessage.content.toLowerCase() 
+        : (lastMessage?.content as MessageContent[])?.find(c => c.type === 'text')?.text?.toLowerCase() || '';
+    const combinedText = lastMessageText;
 
     // Coding keywords
     const codingKeywords = [
@@ -141,7 +175,7 @@ function detectContextType(
 
     // Check for coding context
     if (codingKeywords.some(keyword => combinedText.includes(keyword)) ||
-        context?.hasScreenshot) {
+        hasScreenshot) {
         return 'coding';
     }
 
@@ -159,18 +193,26 @@ function detectContextType(
 }
 
 // Get contextual system prompt based on detected context
-function getContextualSystemPrompt(contextType: 'coding' | 'writing' | 'email' | 'general'): string {
-    const basePrompt = 'You are FlickAI, an intelligent desktop assistant powered by Cerebras.';
+function getContextualSystemPrompt(
+    contextType: 'coding' | 'writing' | 'email' | 'general',
+    visionContext?: string
+): string {
+    const basePrompt = 'You are FlickAI, an intelligent desktop assistant powered by Cerebras GLM 4.7.';
+    
+    // If vision context exists, add it to the prompt
+    const visionSection = visionContext 
+        ? `\n\n**SCREEN CONTEXT** (from vision analysis):\n${visionContext}\n\nThe above description is from analyzing the user's current screen. Use this context to provide specific, relevant help based on what they're actually seeing.`
+        : '';
 
     switch (contextType) {
         case 'coding':
-            return `${basePrompt}
+            return `${basePrompt}${visionSection}
 
 **Context**: User needs coding assistance.
 
 **Your role**:
 - Provide accurate, working code solutions
-- Debug errors and explain the fix
+- Debug errors and explain the fix${visionContext ? '\n- Reference specific code/errors visible in the screen context' : ''}
 - Suggest best practices and optimizations
 - Format code in proper markdown code blocks with language tags
 - Be concise but thorough - explain WHY, not just HOW
@@ -238,7 +280,7 @@ function getContextualSystemPrompt(contextType: 'coding' | 'writing' | 'email' |
 }
 
 // Demo response for when no API key is configured
-async function simulateResponse(userMessage: string): Promise<string> {
+async function simulateResponse(userMessage: string, hasScreenshot: boolean = false): Promise<string> {
     await new Promise(resolve => setTimeout(resolve, 800));
 
     const lower = userMessage.toLowerCase();
@@ -275,7 +317,7 @@ Need more specific help? Share the actual code!`;
 Would you like me to adjust the tone or style?`;
     }
 
-    if (lower.includes('screenshot')) {
+    if (lower.includes('screenshot') || hasScreenshot) {
         return `I can see your screenshot! Here's what I notice:
 
 📸 **Analysis:**
@@ -283,7 +325,7 @@ Would you like me to adjust the tone or style?`;
 - I can help troubleshoot any visible errors
 - Share more context for detailed assistance
 
-What specifically would you like help with?`;
+${hasScreenshot ? '*Note: Screenshot automatically captured! In production mode, I would analyze the actual content.*' : 'What specifically would you like help with?'}`;
     }
 
     return `Thanks for your message! I'm FlickAI, your desktop assistant.
