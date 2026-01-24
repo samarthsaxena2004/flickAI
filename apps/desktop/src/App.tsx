@@ -3,21 +3,19 @@ import { useAI, useVoiceInput, useVision } from './hooks';
 import SettingsModal from './components/SettingsModal';
 import { MessageBubble } from './components/MessageBubble';
 
-type View = 'compact' | 'expanded';
-
 interface Message {
     role: 'user' | 'assistant';
     content: string;
 }
 
 export default function App() {
-    const [view, setView] = useState<View>('compact');
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [screenshotEnabled, setScreenshotEnabled] = useState(false);
     const [fileEnabled, setFileEnabled] = useState(false);
     const [screenshot, setScreenshot] = useState<string | null>(null);
     const [visionContext, setVisionContext] = useState<string | null>(null);
+    const [visionEverUsed, setVisionEverUsed] = useState(false);
     const [streamingContent, setStreamingContent] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -42,7 +40,6 @@ export default function App() {
         // Focus input when window is shown
         window.electronAPI?.onWindowShown(() => {
             inputRef.current?.focus();
-            setView('compact');
             setMessages([]);
             setInput('');
             setScreenshot(null);
@@ -59,8 +56,8 @@ export default function App() {
             console.log('Auto-screenshot received! Analyzing with OpenRouter vision...');
             setScreenshot(dataUrl);
             setScreenshotEnabled(true);
+            setVisionEverUsed(true);
             
-            // Analyze screenshot with OpenRouter vision
             const visionDescription = await analyzeScreenshot(dataUrl);
             setVisionContext(visionDescription);
             console.log('Vision analysis complete!');
@@ -81,10 +78,8 @@ export default function App() {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ctrl+, or Cmd+, to open settings
             if ((e.ctrlKey || e.metaKey) && e.key === ',') {
                 e.preventDefault();
-                console.log('Settings shortcut pressed!');
                 setIsSettingsOpen(true);
             }
         };
@@ -96,23 +91,46 @@ export default function App() {
     const handleSubmit = async () => {
         if (!input.trim() && !screenshot) return;
 
-        // Save vision context before clearing state!
+        // Debug logging for re-analysis trigger
+        console.log('[FlickAI] Submit state:', {
+            visionEverUsed,
+            screenshotEnabled,
+            hasVisionContext: !!visionContext,
+            isAnalyzing,
+            hasInput: !!input.trim(),
+            hasScreenshot: !!screenshot
+        });
+
+        // If vision was ever used, automatically re-analyze before processing
+        if (visionEverUsed && !visionContext && !isAnalyzing) {
+            console.log('[FlickAI] Auto-reanalyzing screen before processing message...');
+            try {
+                const dataUrl = await window.electronAPI?.captureScreenshot();
+                console.log('[FlickAI] Screenshot captured:', !!dataUrl);
+                if (dataUrl) {
+                    setScreenshot(dataUrl);
+                    const visionDescription = await analyzeScreenshot(dataUrl);
+                    setVisionContext(visionDescription);
+                    console.log('[FlickAI] Auto-reanalysis complete!');
+                }
+            } catch (error) {
+                console.error('[FlickAI] Auto-reanalysis failed:', error);
+            }
+        } else {
+            console.log('[FlickAI] Skipping auto re-analysis - condition not met');
+        }
+
         const currentVisionContext = visionContext;
         const currentScreenshot = screenshot;
-
-        // Build user message content
         const userContent = input.trim() || (currentScreenshot ? 'Analyze what you see on this screen and help me.' : '');
-
         const userMessage: Message = { role: 'user', content: userContent };
 
         setMessages((prev) => [...prev, userMessage]);
         setInput('');
         setScreenshot(null);
-        setVisionContext(null);  // Clear vision context
-        setView('expanded');
+        setVisionContext(null);
         setStreamingContent('');
 
-        // Expand window
         window.electronAPI?.expandWindow();
 
         try {
@@ -121,7 +139,6 @@ export default function App() {
                 content: m.content,
             }));
 
-            // Pass vision context to Cerebras GLM 4.7
             const response = await chat(
                 allMessages,
                 (chunk) => {
@@ -157,241 +174,225 @@ export default function App() {
         }
     };
 
-    const captureScreenshot = async () => {
-        // Hide window briefly to capture without it
-        const dataUrl = await window.electronAPI?.captureScreenshot();
-        if (dataUrl) {
-            setScreenshot(dataUrl);
-        }
-    };
-
-    const handleScreenshot = async () => {
-        if (screenshotEnabled) {
-            setScreenshotEnabled(false);
-            setScreenshot(null);
-        } else {
-            const data = await window.electronAPI?.captureScreenshot();
-            if (data) {
-                setScreenshot(data);
+    const handleReanalyzeScreen = async () => {
+        try {
+            console.log('[FlickAI] Re-analyzing screen...');
+            const dataUrl = await window.electronAPI?.captureScreenshot();
+            if (dataUrl) {
+                setScreenshot(dataUrl);
                 setScreenshotEnabled(true);
+                setVisionEverUsed(true);
+                
+                const visionDescription = await analyzeScreenshot(dataUrl);
+                setVisionContext(visionDescription);
+                console.log('[FlickAI] Re-analysis complete!');
             }
+        } catch (error) {
+            console.error('[FlickAI] Re-analysis failed:', error);
         }
-    };
-
-    const clearChat = () => {
-        setMessages([]);
-        setView('compact');
-        setInput('');
-        setScreenshot(null);
     };
 
     return (
-        <div className="h-full w-full flex flex-col animate-fade-in">
-            <div className="glass rounded-2xl h-full flex flex-col overflow-hidden shadow-2xl gradient-border">
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <div className={`${!isSettingsOpen ? 'drag-region' : ''} flex items-center gap-2 flex-1`}>
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 animate-pulse" />
-                        <span className="text-white/90 font-semibold text-sm">FlickAI</span>
-                        {messages.length > 0 && (
+        // Changed main background to transparent, removed slate gradients
+        // Added border-white/10 and rounded-2xl to the outer container for the requested border
+        <div className="h-full w-full flex animate-fade-in bg-transparent p-1">
+            {/* Synapse-style UI */}
+            <div className="h-full w-full flex glass rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col h-full">
+                    {/* Header */}
+                    <div className="drag-region flex items-center justify-between px-6 py-4">
+                        <div className="flex items-center gap-3">
+                            {/* Changed pulse to neutral/white */}
+                            <div className="w-2 h-2 rounded-full bg-white/40 animate-pulse" />
+                            <span className="text-white/80 font-medium text-sm tracking-wide">FlickAI</span>
+                        </div>
+                        <div className="no-drag flex items-center gap-3">
                             <button
-                                onClick={clearChat}
-                                className="no-drag ml-2 text-white/40 hover:text-white/70 text-xs transition-colors"
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-md hover:bg-white/5"
+                                title="Settings (Ctrl+,)"
                             >
-                                Clear
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
                             </button>
-                        )}
+                            <button
+                                onClick={() => window.electronAPI?.hideWindow()}
+                                className="text-white/40 hover:text-white/80 transition-colors text-xs px-2 py-1 rounded-md hover:bg-white/5"
+                            >
+                                ESC
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 no-drag">
-                        {/* Settings button is now absolutely positioned outside this header */}
-                        <button
-                            onClick={() => window.electronAPI?.hideWindow()}
-                            className="force-clickable text-white/50 hover:text-white/80 transition-colors text-xs px-2 py-1 rounded hover:bg-white/10"
-                        >
-                            ESC
-                        </button>
-                    </div>
-                </div>
 
-                {/* Messages (only shown in expanded view) */}
-                {view === 'expanded' && messages.length > 0 && (
-                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-                        {messages.map((msg, i) => (
-                            <MessageBubble key={i} content={msg.content} role={msg.role} />
-                        ))}
+                    {/* Messages Area or Greeting */}
+                    <div className="flex-1 overflow-y-auto px-6">
+                        {messages.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center pb-32">
+                                <h1 className="text-3xl font-light text-white/90 mb-2 tracking-tight">Good Evening</h1>
+                                <p className="text-white/40 text-sm font-light">How can I help you?</p>
+                            </div>
+                        ) : (
+                            <div className="py-6 space-y-6 max-w-3xl mx-auto">
+                                {messages.map((msg, i) => (
+                                    <MessageBubble key={i} content={msg.content} role={msg.role} />
+                                ))}
 
-                        {/* Streaming response */}
-                        {isLoading && streamingContent && (
-                            <MessageBubble
-                                content={streamingContent}
-                                role="assistant"
-                                isStreaming={true}
-                            />
-                        )}
+                                {isLoading && streamingContent && (
+                                    <MessageBubble
+                                        content={streamingContent}
+                                        role="assistant"
+                                        isStreaming={true}
+                                    />
+                                )}
 
-                        {/* Loading indicator */}
-                        {isLoading && !streamingContent && (
-                            <div className="flex justify-start">
-                                <div className="bg-white/10 rounded-xl px-4 py-3">
-                                    <div className="flex gap-1.5">
-                                        <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                        <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                        <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                {isLoading && !streamingContent && (
+                                    <div className="flex justify-start">
+                                        <div className="bg-white/5 rounded-xl px-4 py-3 backdrop-blur-sm">
+                                            <div className="flex gap-1.5">
+                                                {/* Changed bounce colors to white/neutral */}
+                                                <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+                                <div ref={messagesEndRef} />
                             </div>
                         )}
-                        <div ref={messagesEndRef} />
                     </div>
-                )}
 
-                {/* Toggle Options */}
-                <div className="px-4 py-2 flex gap-2 flex-wrap">
-                    {/* Vision Analysis Loading Indicator */}
-                    {isAnalyzing && (
-                        <div className="w-full mb-2">
-                            <div className="text-xs text-cyan-400 flex items-center gap-2 bg-cyan-500/10 px-3 py-2 rounded-lg border border-cyan-500/20">
-                                <div className="animate-spin w-3 h-3 border border-cyan-400 border-t-transparent rounded-full" />
-                                <span>Analyzing screenshot with OpenRouter vision...</span>
+                    {/* Input Area */}
+                    <div className="p-6 mt-auto">
+                        {/* Vision Status & Re-analyze */}
+                        {isAnalyzing && (
+                            // Changed cyan to white/neutral
+                            <div className="mb-3 text-xs text-white/80 flex items-center gap-2 bg-white/5 px-3 py-2 rounded-lg border border-white/10 max-w-3xl mx-auto">
+                                <div className="animate-spin w-3 h-3 border border-white/60 border-t-transparent rounded-full" />
+                                <span>Analyzing screenshot...</span>
                             </div>
-                        </div>
-                    )}
-                    
-                    {/* Screenshot Status */}
-                    {visionContext && !isAnalyzing && (
-                        <div className="w-full mb-2">
-                            <span className="text-xs text-green-400 flex items-center gap-1 bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/20">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
-                                </svg>
-                                Screen analyzed and ready
-                            </span>
-                        </div>
-                    )}
-                    
-                    {/* Screenshots */}
-                    <button
-                        onClick={handleScreenshot}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all ${screenshotEnabled
-                                ? 'bg-violet-600 text-white'
-                                : 'bg-white/10 text-white/70 hover:bg-white/20'
-                            }`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                            />
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                        </svg>
-                        <span className="text-sm font-medium">
-                            {screenshot ? '✓ Screen captured' : 'Turn on screenshot'}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setFileEnabled(!fileEnabled)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${fileEnabled
-                                ? 'bg-violet-600 text-white'
-                                : 'bg-white/10 text-white/70 hover:bg-white/20'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                        </svg>
-                        Turn on file sharing
-                    </button>
-                    <button
-                        onClick={toggleRecording}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isRecording
-                                ? 'bg-red-500 text-white animate-pulse'
-                                : 'bg-white/10 text-white/70 hover:bg-white/20'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                        {isRecording ? 'Recording...' : 'Voice input'}
-                    </button>
-                </div>
+                        )}
 
-                {/* Screenshot Preview */}
-                {screenshot && (
-                    <div className="px-4 py-2">
-                        <div className="relative inline-block">
-                            <img
-                                src={screenshot}
-                                alt="Screenshot"
-                                className="h-24 rounded-lg border border-white/20 shadow-lg"
-                            />
-                            <button
-                                onClick={() => {
-                                    setScreenshot(null);
-                                    setScreenshotEnabled(false);
-                                }}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white text-sm font-bold transition-colors"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Input Area */}
-                <div className="p-4 border-t border-white/10 mt-auto">
-                    <div className="flex items-end gap-2">
-                        <div className="flex-1 relative">
-                            <textarea
-                                ref={inputRef}
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder={
-                                    isRecording ? 'Listening...' : 
-                                    screenshot ? 'What would you like help with on this screen?' :
-                                    'Ask FlickAI anything...'
-                                }
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none text-sm"
-                                rows={1}
-                                disabled={isLoading}
-                                style={{ minHeight: '44px', maxHeight: '120px' }}
-                            />
-                            {isRecording && (
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                    <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                                    </span>
+                        {visionContext && !isAnalyzing && (
+                            <div className="mb-3 flex items-center justify-between max-w-3xl mx-auto">
+                                <div className="text-xs text-emerald-400/90 flex items-center gap-2 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/10">
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    <span>Screen analyzed</span>
                                 </div>
-                            )}
+                                <button
+                                    onClick={handleReanalyzeScreen}
+                                    className="text-xs text-white/60 hover:text-white flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-white/5 rounded-md transition-colors"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Re-analyze
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Input Box with Inline Icons */}
+                        <div className="max-w-3xl mx-auto">
+                            {/* Further refined transparency: bg-black/40 instead of white/5 for contrast on transparent bg */}
+                            <div className="relative flex items-center gap-2 bg-[#1A1A1A]/80 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-xl transition-all shadow-lg hover:border-white/20 focus-within:border-white/30 focus-within:ring-1 focus-within:ring-white/10">
+                                <textarea
+                                    ref={inputRef}
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder={
+                                        isRecording ? 'Listening...' : 
+                                        screenshot ? 'Ask about this screen...' :
+                                        'Ask anything...'
+                                    }
+                                    className="flex-1 bg-transparent border-none text-white placeholder-white/30 focus:outline-none resize-none text-sm font-light tracking-wide"
+                                    rows={1}
+                                    disabled={isLoading}
+                                    style={{ minHeight: '24px', maxHeight: '120px' }}
+                                />
+
+                                {/* Inline Action Icons */}
+                                <div className="flex items-center gap-1">
+                                    {/* Screenshot Icon */}
+                                    <button
+                                        onClick={handleReanalyzeScreen}
+                                        className={`p-1.5 rounded-md transition-colors ${
+                                            screenshotEnabled || visionContext
+                                                // Neutral active state
+                                                ? 'text-white bg-white/20'
+                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                        }`}
+                                        title="Capture & analyze screen"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </button>
+
+                                    {/* File Icon */}
+                                    <button
+                                        onClick={() => setFileEnabled(!fileEnabled)}
+                                        className={`p-1.5 rounded-md transition-colors ${
+                                            fileEnabled
+                                                ? 'text-white bg-white/20'
+                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                        }`}
+                                        title="Attach file"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Voice Icon */}
+                                    <button
+                                        onClick={toggleRecording}
+                                        className={`p-1.5 rounded-md transition-colors ${
+                                            isRecording
+                                                ? 'text-white bg-red-500/40 animate-pulse'
+                                                : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                                        }`}
+                                        title="Voice input"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Submit Button */}
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={(!input.trim() && !screenshot) || isLoading}
+                                        // Changed gradient to subtle neutral/white button
+                                        className="p-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-md text-white transition-all ml-1"
+                                    >
+                                        {isLoading ? (
+                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                        ) : (
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Keyboard Hints */}
+                            <p className="text-white/20 text-[10px] mt-3 text-center tracking-wider uppercase font-medium">
+                                Press <span className="text-white/40">Enter</span> to send · <span className="text-white/40">Esc</span> to hide
+                            </p>
                         </div>
-                        <button
-                            onClick={handleSubmit}
-                            disabled={(!input.trim() && !screenshot) || isLoading}
-                            className="px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-all shadow-lg shadow-violet-500/25"
-                        >
-                            {isLoading ? (
-                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                </svg>
-                            )}
-                        </button>
                     </div>
-                    <p className="text-white/30 text-xs mt-2 text-center">
-                        Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded">Enter</kbd> to send · <kbd className="px-1.5 py-0.5 bg-white/10 rounded">Esc</kbd> to hide · <kbd className="px-1.5 py-0.5 bg-white/10 rounded">Alt+Space</kbd> to toggle
-                    </p>
                 </div>
             </div>
 
@@ -400,27 +401,6 @@ export default function App() {
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
             />
-
-            {/* Absolute positioned settings button (always clickable) */}
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('Absolute settings button clicked!');
-                    setIsSettingsOpen(true);
-                }}
-                className="absolute top-3 right-16 text-white/40 hover:text-white/90 transition-all p-1.5 rounded hover:bg-white/10 z-50"
-                title="Settings (Ctrl+,)"
-                style={{ 
-                    WebkitAppRegion: 'no-drag',
-                    pointerEvents: 'auto',
-                    cursor: 'pointer'
-                } as any}
-            >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ pointerEvents: 'none' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </button>
         </div>
     );
 }

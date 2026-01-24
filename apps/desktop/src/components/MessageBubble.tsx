@@ -1,9 +1,47 @@
 import ReactMarkdown from 'react-markdown';
+import { useState } from 'react';
 
 interface MessageBubbleProps {
     content: string;
     role: 'user' | 'assistant';
     isStreaming?: boolean;
+}
+
+function CodeBlock({ children, className }: { children: React.ReactNode; className?: string }) {
+    const [copied, setCopied] = useState(false);
+    
+    const codeString = String(children).replace(/\n$/, '');
+    
+    const handleCopy = () => {
+        navigator.clipboard.writeText(codeString);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+    
+    return (
+        <div className="relative group my-3">
+            <pre className="bg-slate-950/80 rounded-lg p-4 overflow-x-auto border border-slate-700/50 pr-12">
+                <code className={`text-xs text-cyan-100 ${className}`}>
+                    {children}
+                </code>
+            </pre>
+            <button
+                onClick={handleCopy}
+                className="absolute top-2 right-2 p-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                title="Copy code"
+            >
+                {copied ? (
+                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                ) : (
+                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                )}
+            </button>
+        </div>
+    );
 }
 
 export function MessageBubble({ content, role, isStreaming = false }: MessageBubbleProps) {
@@ -66,11 +104,7 @@ export function MessageBubble({ content, role, isStreaming = false }: MessageBub
                                 code: ({ children, className }) => {
                                     const isBlock = className?.includes('language-');
                                     return isBlock ? (
-                                        <pre className="my-3 bg-slate-950/80 rounded-lg p-4 overflow-x-auto border border-slate-700/50">
-                                            <code className={`text-xs text-cyan-100 ${className}`}>
-                                                {children}
-                                            </code>
-                                        </pre>
+                                        <CodeBlock className={className}>{children}</CodeBlock>
                                     ) : (
                                         <code className="px-1.5 py-0.5 bg-slate-700/50 rounded text-cyan-300 text-xs font-mono">
                                             {children}

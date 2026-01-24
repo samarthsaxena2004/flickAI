@@ -35,3 +35,6 @@ release/
 *.dmg
 *.exe
 *.msi
+
+# Test files
+test-*.js
