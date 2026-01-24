@@ -189,5 +189,5 @@ This project was built for the **Cerebras x Cline: Vibe Coder Hackathon** with a
 ---
 
 <div align="center">
-  Made with ❤️ & 🔥 by <b>Samarth Saxena</b> & <b>Maaz</b>
+  Made by <b>Samarth Saxena</b> & <b>Maaz</b>
 </div>
