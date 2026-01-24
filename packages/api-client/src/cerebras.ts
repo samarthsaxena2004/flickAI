@@ -7,7 +7,7 @@ import type {
 } from './types';
 
 const DEFAULT_BASE_URL = 'https://api.cerebras.ai/v1';
-const DEFAULT_MODEL = 'llama-3.3-70b';
+const DEFAULT_MODEL = 'zai-glm-4.7';
 
 export class CerebrasClient {
     private apiKey: string;
