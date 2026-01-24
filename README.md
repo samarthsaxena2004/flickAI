@@ -183,8 +183,8 @@ This project was built for the **Cerebras x Cline: Vibe Coder Hackathon** with a
 
 ## 👥 The Team
 
-- **Samarth Saxena** - [GitHub](https://github.com/samarthsaxena2004)
 - **Maaz** - [GitHub](https://github.com/somewherelostt)
+- **Samarth Saxena** - [GitHub](https://github.com/samarthsaxena2004)
 
 ---
 
