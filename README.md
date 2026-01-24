@@ -40,7 +40,7 @@ With just two of us and 24 hours, we set out to build exactly that — a native 
 </div>
 
 <div align="center">
-  <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/useCase4.png" alt="FlickAI Demo - Note Taking" />
+  <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/195_1x_shots_so.png" alt="FlickAI Demo - Note Taking" />
   <p><strong>Use case: Note Taking & Meetings</strong><br>Summarize messy meeting notes, extract action items, or turn bullet points into structured outlines — all from what's visible on screen.</p>
 </div>
 
