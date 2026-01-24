@@ -9,7 +9,7 @@
     <i>(Click the image above to watch the walkthrough)</i>
   </p>
   <br />
-  <h1>A Intelligent Desktop Assistant That Sees What You See</h1>
+  <h1>The Intelligent Desktop Assistant That Sees What You See</h1>
   <p>
     <b>Built in 24 hours for the Cerebras x Cline: Vibe Coder Hackathon</b><br />
     Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
@@ -35,17 +35,17 @@ With just two of us and 24 hours, we set out to build exactly that — a native 
 ## Use Cases
 
 <div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Coding" />
+  <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/useCase1.png" alt="FlickAI Demo - Coding" />
   <p><strong>Use case: Coding & Debugging</strong><br>Instantly analyze stack traces, suggest fixes, explain errors, or generate code snippets right from your editor/terminal.</p>
 </div>
 
 <div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Note Taking" />
+  <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/useCase3.png" alt="FlickAI Demo - Note Taking" />
   <p><strong>Use case: Note Taking & Meetings</strong><br>Summarize messy meeting notes, extract action items, or turn bullet points into structured outlines — all from what's visible on screen.</p>
 </div>
 
 <div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Messaging/Email" />
+  <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/useCase2.png" alt="FlickAI Demo - Messaging/Email" />
   <p><strong>Use case: Messaging & Email</strong><br>Read the conversation/email thread on screen and draft thoughtful replies in your personal tone, without context switching.</p>
 </div>
 
