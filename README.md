@@ -2,7 +2,7 @@
 
 <div align="center">
   <a href="LINK_TO_YOUR_YOUTUBE_VIDEO_OR_LOOM">
-    <img src="https://placehold.co/1200x675/1e1e1e/8b5cf6?text=▶️+WATCH+THE+DEMO+(2+mins)" alt="Watch FlickAI Demo" />
+    <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/photo_2026-01-24%2023.42.34.jpeg" alt="Watch FlickAI Demo" />
   </a>
  
   <p>
