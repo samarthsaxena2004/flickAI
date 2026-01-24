@@ -308,6 +308,7 @@ app.on('open-url', (_event, url) => {
 // App lifecycle
 app.whenReady().then(() => {
     createWindow();
+    showWindow();
     createTray();
     registerHotkeys();
     setupIPC();
@@ -319,16 +320,16 @@ app.whenReady().then(() => {
             showWindow();
         }
     });
+
+    app.on('will-quit', () => {
+        globalShortcut.unregisterAll();
+    });
 });
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
     }
-});
-
-app.on('will-quit', () => {
-    globalShortcut.unregisterAll();
 });
 
 // Single instance lock
