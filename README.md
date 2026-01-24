@@ -32,6 +32,23 @@ We didn't want another chatbot. We wanted a "tap-on-the-shoulder" companion — 
 
 With just two of us and 24 hours, we set out to build exactly that — a native OS-like experience that feels like magic.
 
+## Use Cases
+
+<div align="center">
+  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Coding" />
+  <p><strong>Use case: Coding & Debugging</strong><br>Instantly analyze stack traces, suggest fixes, explain errors, or generate code snippets right from your editor/terminal.</p>
+</div>
+
+<div align="center">
+  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Note Taking" />
+  <p><strong>Use case: Note Taking & Meetings</strong><br>Summarize messy meeting notes, extract action items, or turn bullet points into structured outlines — all from what's visible on screen.</p>
+</div>
+
+<div align="center">
+  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Messaging/Email" />
+  <p><strong>Use case: Messaging & Email</strong><br>Read the conversation/email thread on screen and draft thoughtful replies in your personal tone, without context switching.</p>
+</div>
+
 ## The Cerebras & Cline Experience
 
 This project wouldn't have been possible in this timeframe without our core tech stack. Here's what we learned:
@@ -69,23 +86,6 @@ Huge thanks to both the Cerebras and Cline teams for their fast support — it w
   - **Draft**: Staring at a blank reply? It reads the email thread and drafts a response in your tone.
   - **Summarize**: Meeting notes on screen? It organizes them into action items.
 - **Voice Mode**: Don't want to type? Just speak. Integrated **Deepgram** for near-instant transcription.
-
-## Use Cases
-
-<div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Coding" />
-  <p><strong>Use case: Coding & Debugging</strong><br>Instantly analyze stack traces, suggest fixes, explain errors, or generate code snippets right from your editor/terminal.</p>
-</div>
-
-<div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Note Taking" />
-  <p><strong>Use case: Note Taking & Meetings</strong><br>Summarize messy meeting notes, extract action items, or turn bullet points into structured outlines — all from what's visible on screen.</p>
-</div>
-
-<div align="center">
-  <img src="https://placehold.co/800x500/1e1e1e/8b5cf6?text=Insert+Application+Demo+GIF+Here" alt="FlickAI Demo - Messaging/Email" />
-  <p><strong>Use case: Messaging & Email</strong><br>Read the conversation/email thread on screen and draft thoughtful replies in your personal tone, without context switching.</p>
-</div>
 
 ## Tech Stack
 
