@@ -14,6 +14,7 @@ export default function App() {
     const [screenshotEnabled, setScreenshotEnabled] = useState(false);
     const [fileEnabled, setFileEnabled] = useState(false);
     const [screenshot, setScreenshot] = useState<string | null>(null);
+    const [isCapturing, setIsCapturing] = useState(false); // Track capture state
     const [visionContext, setVisionContext] = useState<string | null>(null);
     const [visionEverUsed, setVisionEverUsed] = useState(false);
     const [streamingContent, setStreamingContent] = useState('');
@@ -37,34 +38,67 @@ export default function App() {
     }, [messages, streamingContent]);
 
     useEffect(() => {
-        // Focus input when window is shown
-        window.electronAPI?.onWindowShown(() => {
-            inputRef.current?.focus();
-            setMessages([]);
-            setInput('');
-            setScreenshot(null);
-        });
+        const handleWindowShown = (_event: any, capturing: boolean) => {
+             console.log('[FlickAI] Window shown event received. Capturing:', capturing);
+             inputRef.current?.focus();
+             setMessages([]);
+             setInput('');
+             setScreenshot(null);
+             
+             if (capturing) {
+                 setIsCapturing(true);
+                 setTimeout(() => setIsCapturing(false), 2000);
+             } else {
+                 setIsCapturing(false);
+             }
+        };
+
+        // Method 1: Context Bridge
+        if (window.electronAPI) {
+            window.electronAPI.onWindowShown((capturing) => handleWindowShown(null, capturing));
+        } 
+        // Method 2: Direct IPC
+        else if (window.require) {
+            const { ipcRenderer } = window.require('electron');
+            ipcRenderer.on('window-shown', handleWindowShown);
+        }
 
         return () => {
-            window.electronAPI?.removeAllListeners('window-shown');
+            if (window.electronAPI) window.electronAPI.removeAllListeners('window-shown');
+            else if (window.require) {
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.removeListener('window-shown', handleWindowShown);
+            }
         };
     }, []);
 
     // Listen for auto-captured screenshot when app is invoked
     useEffect(() => {
-        window.electronAPI?.onAutoScreenshotCaptured(async (dataUrl: string) => {
-            console.log('Auto-screenshot received! Analyzing with OpenRouter vision...');
+        const handleScreenshot = async (_event: any, dataUrl: string) => {
+            console.log('[FlickAI] Auto-screenshot received! Analyzing with OpenRouter vision...');
+            setIsCapturing(false);
             setScreenshot(dataUrl);
             setScreenshotEnabled(true);
             setVisionEverUsed(true);
             
             const visionDescription = await analyzeScreenshot(dataUrl);
             setVisionContext(visionDescription);
-            console.log('Vision analysis complete!');
-        });
+            console.log('[FlickAI] Vision analysis complete!', visionDescription ? 'Context acquired' : 'No context');
+        };
+
+        if (window.electronAPI) {
+            window.electronAPI.onAutoScreenshotCaptured((dataUrl) => handleScreenshot(null, dataUrl));
+        } else if (window.require) {
+            const { ipcRenderer } = window.require('electron');
+            ipcRenderer.on('auto-screenshot-captured', handleScreenshot);
+        }
 
         return () => {
-            window.electronAPI?.removeAllListeners('auto-screenshot-captured');
+             if (window.electronAPI) window.electronAPI.removeAllListeners('auto-screenshot-captured');
+             else if (window.require) {
+                 const { ipcRenderer } = window.require('electron');
+                 ipcRenderer.removeListener('auto-screenshot-captured', handleScreenshot);
+             }
         };
     }, [analyzeScreenshot]);
 
@@ -177,18 +211,41 @@ export default function App() {
     const handleReanalyzeScreen = async () => {
         try {
             console.log('[FlickAI] Re-analyzing screen...');
-            const dataUrl = await window.electronAPI?.captureScreenshot();
+            setIsCapturing(true);
+            
+            let dataUrl: string | null = null;
+
+            // Method 1: Try Context Bridge (Standard)
+            if (window.electronAPI?.captureScreenshot) {
+                dataUrl = await window.electronAPI.captureScreenshot();
+            } 
+            // Method 2: Direct IPC (Demo/Dev Mode)
+            else if (window.require) {
+                console.log('[FlickAI] Using direct IPC fallback');
+                const { ipcRenderer } = window.require('electron');
+                dataUrl = await ipcRenderer.invoke('capture-screenshot');
+            } else {
+                console.error('[FlickAI] No Electron access available');
+                return;
+            }
+            
             if (dataUrl) {
+                console.log('[FlickAI] Screenshot captured successfully, length:', dataUrl.length);
                 setScreenshot(dataUrl);
                 setScreenshotEnabled(true);
                 setVisionEverUsed(true);
                 
+                console.log('[FlickAI] Starting vision analysis...');
                 const visionDescription = await analyzeScreenshot(dataUrl);
                 setVisionContext(visionDescription);
                 console.log('[FlickAI] Re-analysis complete!');
+            } else {
+                console.warn('[FlickAI] Capture returned null - no screenshot available');
             }
         } catch (error) {
             console.error('[FlickAI] Re-analysis failed:', error);
+        } finally {
+            setIsCapturing(false);
         }
     };
 
@@ -232,7 +289,30 @@ export default function App() {
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center pb-32">
                                 <h1 className="text-3xl font-light text-white/90 mb-2 tracking-tight">Good Evening</h1>
-                                <p className="text-white/40 text-sm font-light">How can I help you?</p>
+                                <p className="text-white/40 text-sm font-light mb-8">How can I help you?</p>
+                                
+                                {!screenshot && !isAnalyzing && (
+                                    <button 
+                                        onClick={handleReanalyzeScreen}
+                                        disabled={isCapturing}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/5 hover:border-white/10 group"
+                                    >
+                                        {isCapturing ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"/>
+                                                <span>Capturing...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                                <span>Capture Screen</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="py-6 space-y-6 max-w-3xl mx-auto">
@@ -322,18 +402,23 @@ export default function App() {
                                     {/* Screenshot Icon */}
                                     <button
                                         onClick={handleReanalyzeScreen}
+                                        disabled={isCapturing}
                                         className={`p-1.5 rounded-md transition-colors ${
-                                            screenshotEnabled || visionContext
+                                            screenshotEnabled || visionContext || isCapturing
                                                 // Neutral active state
                                                 ? 'text-white bg-white/20'
                                                 : 'text-white/30 hover:text-white/60 hover:bg-white/5'
                                         }`}
                                         title="Capture & analyze screen"
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
+                                        {isCapturing ? (
+                                            <div className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        )}
                                     </button>
 
                                     {/* File Icon */}

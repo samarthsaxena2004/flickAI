@@ -1,4 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron';
+// @ts-nocheck
+const { contextBridge, ipcRenderer } = require('electron');
+
+console.log('[Preload] Script loading...');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -20,8 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resetKeybinding: () => ipcRenderer.invoke('reset-keybinding'),
 
     // Event listeners
-    onWindowShown: (callback: () => void) => {
-        ipcRenderer.on('window-shown', callback);
+    onWindowShown: (callback: (isCapturing: boolean) => void) => {
+        ipcRenderer.on('window-shown', (_event, isCapturing) => callback(isCapturing));
     },
     onAuthTokenReceived: (callback: (token: string) => void) => {
         ipcRenderer.on('auth-token-received', (_event, token) => callback(token));
@@ -36,6 +39,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 });
 
+console.log('[Preload] electronAPI exposed successfully');
+
 // Type definitions for renderer
 declare global {
     interface Window {
@@ -48,7 +53,7 @@ declare global {
             getKeybinding: () => Promise<string>;
             setKeybinding: (keybinding: string) => Promise<boolean>;
             resetKeybinding: () => Promise<string>;
-            onWindowShown: (callback: () => void) => void;
+            onWindowShown: (callback: (isCapturing: boolean) => void) => void;
             onAuthTokenReceived: (callback: (token: string) => void) => void;
             onAutoScreenshotCaptured: (callback: (dataUrl: string) => void) => void;
             removeAllListeners: (channel: string) => void;

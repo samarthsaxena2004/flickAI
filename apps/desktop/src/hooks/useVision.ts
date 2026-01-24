@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { createWorker } from 'tesseract.js';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -7,7 +7,7 @@ const VISION_MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free'; // Llama v
 export function useVision() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-    const analyzeWithOCR = async (screenshotDataUrl: string): Promise<string> => {
+    const analyzeWithOCR = useCallback(async (screenshotDataUrl: string): Promise<string> => {
         try {
             console.log('[Vision] Falling back to OCR (Tesseract)...');
             
@@ -28,9 +28,9 @@ export function useVision() {
             console.error('[Vision] OCR error:', error);
             return '[Screenshot captured but OCR failed]';
         }
-    };
+    }, []);
 
-    const analyzeWithOpenRouter = async (screenshotDataUrl: string): Promise<string | null> => {
+    const analyzeWithOpenRouter = useCallback(async (screenshotDataUrl: string): Promise<string | null> => {
         const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
 
         if (!apiKey) {
@@ -41,6 +41,9 @@ export function useVision() {
         try {
             console.log('[Vision] Trying OpenRouter vision model...');
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
             const response = await fetch(OPENROUTER_API_URL, {
                 method: 'POST',
                 headers: {
@@ -49,6 +52,7 @@ export function useVision() {
                    'HTTP-Referer': 'https://flickai.app',
                     'X-Title': 'FlickAI',
                 },
+                signal: controller.signal,
                 body: JSON.stringify({
                     model: VISION_MODEL,
                     messages: [
@@ -79,6 +83,8 @@ Be specific and thorough.`
                 }),
             });
 
+            clearTimeout(timeoutId);
+
             if (!response.ok) {
                 const errorText = await response.text();
                 
@@ -103,12 +109,16 @@ Be specific and thorough.`
             return null;
 
         } catch (error) {
-            console.error('[Vision] OpenRouter network error:', error);
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.warn('[Vision] OpenRouter request timed out after 15s');
+            } else {
+                console.error('[Vision] OpenRouter network error:', error);
+            }
             return null; // Signal to use OCR fallback
         }
-    };
+    }, []);
 
-    const analyzeScreenshot = async (screenshotDataUrl: string): Promise<string> => {
+    const analyzeScreenshot = useCallback(async (screenshotDataUrl: string): Promise<string> => {
         setIsAnalyzing(true);
 
         try {
@@ -132,7 +142,7 @@ Be specific and thorough.`
         } finally {
             setIsAnalyzing(false);
         }
-    };
+    }, [analyzeWithOpenRouter, analyzeWithOCR]);
 
     return { analyzeScreenshot, isAnalyzing };
 }

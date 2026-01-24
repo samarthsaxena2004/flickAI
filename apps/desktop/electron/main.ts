@@ -33,11 +33,18 @@ function createWindow() {
         resizable: true,
         show: false,
         webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
+            sandbox: false,
+            nodeIntegration: true, // Enable for demo/prototype
+            contextIsolation: false, // Disable for demo/prototype
+            webSecurity: false, // Optional: useful for loading local resources in demo
+            // preload: path.join(__dirname, 'preload.cjs'), // Not strictly needed with nodeIntegration but keeping it doesn't hurt
         },
     });
+
+    // Debug: Log preload path
+    const preloadPath = path.join(__dirname, 'preload.cjs');
+    console.log('[Main] Preload path:', preloadPath);
+    console.log('[Main] __dirname:', __dirname);
 
     // Load the app
     if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
@@ -60,8 +67,10 @@ function createWindow() {
 }
 
 async function showWindow() {
+    // Capture screenshot BEFORE showing window (to capture what's underneath)
+    let screenshotDataUrl: string | null = null;
+    
     if (mainWindow) {
-        // Capture screenshot BEFORE showing window (to capture what's underneath)
         try {
             const sources = await desktopCapturer.getSources({
                 types: ['screen'],
@@ -69,12 +78,12 @@ async function showWindow() {
             });
 
             if (sources.length > 0) {
-                const screenshotDataUrl = sources[0].thumbnail.toDataURL();
+                const dataUrl = sources[0].thumbnail.toDataURL();
                 
                 // Verify we got actual data
-                if (screenshotDataUrl && screenshotDataUrl.startsWith('data:image')) {
-                    console.log('[Screenshot] Captured successfully, size:', screenshotDataUrl.length);
-                    mainWindow.webContents.send('auto-screenshot-captured', screenshotDataUrl);
+                if (dataUrl && dataUrl.startsWith('data:image')) {
+                    console.log('[Screenshot] Captured successfully, size:', dataUrl.length);
+                    screenshotDataUrl = dataUrl;
                 } else {
                     console.warn('[Screenshot] Invalid screenshot data, skipping');
                 }
@@ -101,7 +110,16 @@ async function showWindow() {
         mainWindow.show();
         mainWindow.focus();
         isVisible = true;
-        mainWindow.webContents.send('window-shown');
+        
+        // Signal window shown (resets UI) BEFORE sending the new screenshot
+        // Pass boolean indicating if a screenshot was successfully captured and will be sent shortly
+        mainWindow.webContents.send('window-shown', !!screenshotDataUrl);
+
+        // Send the pre-captured screenshot if available
+        if (screenshotDataUrl) {
+            console.log('[Screenshot] Sending captured screenshot to renderer');
+            mainWindow.webContents.send('auto-screenshot-captured', screenshotDataUrl);
+        }
     }
 }
 
@@ -243,19 +261,102 @@ function setupIPC() {
     });
 
     ipcMain.handle('capture-screenshot', async () => {
+        const startTime = Date.now();
+        console.log('[Screenshot] ========== Starting capture ==========');
+        
+        // Save initial window state
+        const wasVisible = isVisible;
+        const maxRetries = 3;
+        let lastError: Error | null = null;
+        
         try {
-            const sources = await desktopCapturer.getSources({
-                types: ['screen'],
-                thumbnailSize: { width: 1920, height: 1080 },
-            });
-
-            if (sources.length > 0) {
-                return sources[0].thumbnail.toDataURL();
+            // CRITICAL: Hide window before capture to avoid capturing the FlickAI window itself
+            // This significantly improves capture reliability on Windows 11
+            if (mainWindow && wasVisible) {
+                console.log('[Screenshot] Hiding window for clean capture...');
+                mainWindow.hide();
+                isVisible = false; // Update state immediately
+                
+                // Increased delay to 500ms for Windows 11 reliability (especially with multiple GPUs)
+                // This gives the OS compositor enough time to fully hide the window
+                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log('[Screenshot] Window hidden, proceeding with capture');
             }
+            
+            // Retry loop for improved reliability
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    console.log(`[Screenshot] Attempt ${attempt}/${maxRetries}`);
+                    const attemptStart = Date.now();
+                    
+                    // Request screen sources from OS
+                    const sourcesPromise = desktopCapturer.getSources({
+                        types: ['screen'],
+                        thumbnailSize: { width: 1280, height: 720 },
+                    });
+                    
+                    // 5 second timeout per attempt (increased from 4s)
+                    const timeoutPromise = new Promise<Electron.DesktopCapturerSource[]>((_, reject) => {
+                        setTimeout(() => reject(new Error(`Timeout after 5000ms on attempt ${attempt}`)), 5000);
+                    });
+
+                    const sources = await Promise.race([sourcesPromise, timeoutPromise]);
+                    const attemptDuration = Date.now() - attemptStart;
+                    
+                    console.log(`[Screenshot] Attempt ${attempt} completed in ${attemptDuration}ms`);
+
+                    if (sources && sources.length > 0) {
+                        const result = sources[0].thumbnail.toDataURL();
+                        const totalDuration = Date.now() - startTime;
+                        
+                        console.log(`[Screenshot] ✓ Capture successful! Total time: ${totalDuration}ms`);
+                        console.log(`[Screenshot] Data URL length: ${result.length} bytes`);
+                        return result;
+                    } else {
+                        console.warn(`[Screenshot] Attempt ${attempt}: No screen sources found`);
+                        lastError = new Error('No screen sources available');
+                        
+                        // Don't retry if no sources found - it won't help
+                        if (attempt < maxRetries) {
+                            console.log('[Screenshot] Retrying in 500ms...');
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    
+                } catch (attemptError) {
+                    lastError = attemptError instanceof Error ? attemptError : new Error(String(attemptError));
+                    console.error(`[Screenshot] Attempt ${attempt} failed:`, lastError.message);
+                    
+                    // Only retry if we haven't exhausted attempts
+                    if (attempt < maxRetries) {
+                        console.log(`[Screenshot] Retrying... (${maxRetries - attempt} attempts remaining)`);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+            }
+            
+            // All retries exhausted
+            const totalDuration = Date.now() - startTime;
+            console.error(`[Screenshot] ✗ All ${maxRetries} attempts failed after ${totalDuration}ms`);
+            console.error(`[Screenshot] Last error:`, lastError?.message || 'Unknown error');
+            console.error(`[Screenshot] This may be due to Windows GPU configuration. See: https://github.com/electron/electron/issues/16196`);
+            
             return null;
+            
         } catch (error) {
-            console.error('Screenshot error:', error);
+            const totalDuration = Date.now() - startTime;
+            console.error(`[Screenshot] ✗ Unexpected error after ${totalDuration}ms:`, error);
             return null;
+        } finally {
+            // ALWAYS restore window visibility if it was visible before
+            if (mainWindow && wasVisible) {
+                console.log('[Screenshot] Restoring window visibility...');
+                mainWindow.show();
+                mainWindow.focus();
+                isVisible = true;
+                console.log('[Screenshot] Window restored');
+            }
+            console.log('[Screenshot] ========== Capture complete ==========');
         }
     });
 
