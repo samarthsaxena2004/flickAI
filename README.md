@@ -173,8 +173,6 @@ samarthsaxena2004/flickai/
 
 ## Hackathon Context
 
-This project was built for the **Cerebras x Cline: Vibe Coder Hackathon** with a focus on speed and "vibe coding". 
-
 - **Challenge**: Build a project in under 24 hours.
 - **Tools Used**: 
     - **Cline**: For rapid systematic coding and refactoring.
