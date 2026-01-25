@@ -6,14 +6,11 @@
   </a>
   <h1>The Intelligent Desktop Assistant That Sees What You See</h1>
   <p>
-    <b>Built in 24 hours for the Cerebras x Cline: Vibe Coder Hackathon</b><br />
-    Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
+    <b>Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
   </p>
   <p>
-    <a href="https://youtu.be/1K1a07Wli7E">Demo Video</a> ·
     <a href="https://github.com/samarthsaxena2004/flickai/issues">Report Bug</a> ·
-    <a href="https://github.com/samarthsaxena2004/flickai/issues">Request Feature</a> ·
-    <a href="https://x.com/Maaztwts/status/2015104347655541013">X Post</a>
+    <a href="https://github.com/samarthsaxena2004/flickai/issues">Request Feature</a> 
   </p>
 </div>
 
