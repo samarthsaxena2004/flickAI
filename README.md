@@ -16,6 +16,26 @@
 
 ---
 
+## 🏆 Hackathon Win – Cerebras GLM-4.7 Challenge
+
+**FlickAI won $2,500 in the Cerebras GLM-4.7 Hackathon**, recognized on the official Cerebras announcement.
+
+- 🔗 Official Announcement: https://x.com/cerebras/status/2016295407912157615  
+- 🚀 Built with: **Cerebras GLM-4.7**, Electron, React, Vision + Voice  
+- ⏱ Built in: **24 hours**
+
+This project was selected for demonstrating:
+
+- Real-time desktop AI interaction with near-instant inference  
+- Practical on-screen vision + context understanding  
+- Seamless streaming UX powered by Cerebras speed  
+- A production-style assistant built end-to-end during the hackathon
+
+The award validated our core idea:  
+> AI assistants should live *inside your workflow*, not inside a browser tab.
+
+---
+
 ## The "Why" (Our Story)
 
 We've all been there: you're debugging a cryptic error, or staring at a blank email draft, and you have to context-switch. You alt-tab to a browser, copy-paste your code/text into ChatGPT, only to lose your flow.
