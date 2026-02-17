@@ -1,4 +1,4 @@
-#FlickAI
+# FlickAI
 ---
 
 ## 🏆 Hackathon Win – Cerebras GLM-4.7 Challenge
