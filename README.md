@@ -1,19 +1,5 @@
 # FlickAI
 
-<div align="center">
-  <a href="LINK_TO_YOUR_YOUTUBE_VIDEO_OR_LOOM">
-    <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/photo_2026-01-24%2023.42.34.jpeg" alt="Watch FlickAI Demo" />
-  </a>
-  <h1>The Intelligent Desktop Assistant That Sees What You See</h1>
-  <p>
-    <b>Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
-  </p>
-  <p>
-    <a href="https://github.com/samarthsaxena2004/flickai/issues">Report Bug</a> ·
-    <a href="https://github.com/samarthsaxena2004/flickai/issues">Request Feature</a> 
-  </p>
-</div>
-
 ---
 
 ## 🏆 Hackathon Win – Cerebras GLM-4.7 Challenge
@@ -33,6 +19,22 @@ This project was selected for demonstrating:
 
 The award validated our core idea:  
 > AI assistants should live *inside your workflow*, not inside a browser tab.
+
+---
+
+<div align="center">
+  <a href="LINK_TO_YOUR_YOUTUBE_VIDEO_OR_LOOM">
+    <img src="https://github.com/samarthsaxena2004/flickAI/blob/main/apps/web/public/images/photo_2026-01-24%2023.42.34.jpeg" alt="Watch FlickAI Demo" />
+  </a>
+  <h1>The Intelligent Desktop Assistant That Sees What You See</h1>
+  <p>
+    <b>Powered by <b>Cerebras GLM-4.7</b> & Built rapidly with <b>Cline</b>
+  </p>
+  <p>
+    <a href="https://github.com/samarthsaxena2004/flickai/issues">Report Bug</a> ·
+    <a href="https://github.com/samarthsaxena2004/flickai/issues">Request Feature</a> 
+  </p>
+</div>
 
 ---
 
