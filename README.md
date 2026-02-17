@@ -1,4 +1,6 @@
-# FlickAI
+<div align="center">
+  # FlickAI
+</div>
 
 ---
 
