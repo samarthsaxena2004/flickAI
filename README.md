@@ -75,9 +75,9 @@ The biggest bottleneck for desktop assistants is usually latency. Waiting 5–10
 - **What worked**: We plugged in Cerebras GLM-4.7 and were blown away. The token generation is so fast that the answer often appears before we finish blinking.
 - **The Trick**: We streamed the response directly to our "Message Bubble" component. Because Cerebras is so fast, the UI feels like it's thinking *with* you, rather than processing *for* you.
 
-### Cline: "Vibe Coding"
+### Cline: "Coding Agent"
 
-We practiced "Vibe Coding" — focusing on high-level logic and UX "vibe" while Cline handled the heavy lifting.
+We practiced "Agentic Coding" — focusing on high-level logic and UX "vibe" while Cline handled the heavy lifting.
 
 - **Rapid Prototyping**: We used Cline to scaffold the entire Electron + React + Vite monorepo structure in minutes, not hours.
 - **Refactoring**: When we changed our mind about the design (switching from a sidebar to a floating spotlight search style), Cline refactored the Tailwind classes across multiple files instantly.
